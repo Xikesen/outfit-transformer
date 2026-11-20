@@ -111,14 +111,14 @@ def compute(rank: int, world_size: int, args: Any):
     all_embeddings = np.concatenate(all_embeddings, axis=0)
     logger.info(f"Computed {len(all_embeddings)} embeddings")
 
-    # numpy 어레이 저장
+    # Save numpy array
     save_dir = POLYVORE_PRECOMPUTED_CLIP_EMBEDDING_DIR.format(polyvore_dir=args.polyvore_dir)
     os.makedirs(save_dir, exist_ok=True)
     save_path = f"{save_dir}/polyvore_{rank}.pkl"
     with open(save_path, 'wb') as f:
         pickle.dump({'ids': all_ids, 'embeddings': all_embeddings}, f)
     
-    # DDP 종료
+    # Shut down DDP
     cleanup()
 
 

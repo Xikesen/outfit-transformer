@@ -227,6 +227,8 @@ def train(
 ):  
     # Setup
     setup(rank, world_size)
+    seed_everything(args.seed + rank)
+    best_score, best_epoch = -1.0, -1
     
     # Logging Setup
     project_name = f'complementary_{args.model_type}_' + (
@@ -288,9 +290,24 @@ def train(
             
         dist.barrier()
         map_location = f'cuda:{rank}' if torch.cuda.is_available() else 'cpu'
-        state_dict = torch.load(checkpoint_path, map_location=map_location)
+        state_dict = torch.load(checkpoint_path, map_location=map_location, weights_only=False)
         model.load_state_dict(state_dict['model'])
         logger.info(f'Checkpoint loaded from {checkpoint_path}')
+
+        # Keep only the best and latest checkpoints
+        if rank == 0:
+            score_now = valid_logs.get('valid_acc', -1.0)
+            prev_path = os.path.join(checkpoint_dir, f'epoch_{epoch}.pth')
+            if score_now > best_score:
+                if best_epoch > 0 and best_epoch != epoch:
+                    old_best = os.path.join(checkpoint_dir, f'epoch_{best_epoch}.pth')
+                    if os.path.exists(old_best): os.remove(old_best)
+                best_score, best_epoch = score_now, epoch + 1
+                with open(os.path.join(checkpoint_dir, 'best.json'), 'w') as f:
+                    json.dump({'best_epoch': best_epoch, 'valid_acc': best_score}, f)
+            if epoch >= 1 and epoch != best_epoch and os.path.exists(prev_path):
+                os.remove(prev_path)
+            logger.info(f'Best so far: epoch {best_epoch} valid_acc={best_score:.4f}')
 
     cleanup()
 

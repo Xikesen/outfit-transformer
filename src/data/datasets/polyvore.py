@@ -38,6 +38,18 @@ item_id2metadata_idx = {
 metadata_idx2item_id = {
     j: i for i, j in tqdm(enumerate(item_id2metadata_idx))
 }
+# Metadata without images, used when embeddings are precomputed.
+metadata_noimg = metadata.remove_columns(['image'])
+
+_SPLIT_ALIASES = {'valid': 'validation', 'val': 'validation'}
+
+def _hf_split(split):
+    return _SPLIT_ALIASES.get(split, split)
+
+
+def load_metadata(*args, **kwargs):
+    # Metadata is loaded at import time.
+    return metadata
 
 def load_embedding_dict(dataset_dir):
     e_dir = POLYVORE_PRECOMPUTED_CLIP_EMBEDDING_DIR.format(dataset_dir=dataset_dir)
@@ -61,11 +73,17 @@ def load_embedding_dict(dataset_dir):
     return all_embeddings_dict
 
 
-def load_item(item_id, embedding_dict: dict = None) -> FashionItem:
-    m = metadata[item_id2metadata_idx[item_id]]
+def load_item(item_id, embedding_dict: dict = None, load_image: bool = None) -> FashionItem:
+    if load_image is None:
+        load_image = embedding_dict is None
+    m = (metadata if load_image else metadata_noimg)[item_id2metadata_idx[item_id]]
+
+    image = m.get('image')
+    if image is not None and image.mode != 'RGB':
+        image = image.convert('RGB')
 
     return FashionItem(
-        item_id=m['item_id'], image=m['image'], category=m['category'], description=m['url_name'],
+        item_id=m['item_id'], image=image, category=m['category'], description=m['url_name'],
         embedding=embedding_dict[item_id] if embedding_dict else None
     )
 
@@ -77,7 +95,9 @@ class PolyvoreCompatibilityDataset(Dataset):
         dataset_type: Literal['nondisjoint', 'disjoint'] = 'nondisjoint',
         dataset_split: Literal['train', 'valid', 'test'] = 'train',
         embedding_dict: dict = None,
+        **kwargs,
     ):
+        dataset_split = _hf_split(dataset_split)
         # Modified >>>
         task = 'compatibility'
         self.data = load_dataset(
@@ -90,7 +110,7 @@ class PolyvoreCompatibilityDataset(Dataset):
         )
         for i in set_infos:
             for j in i['items']:
-                self.id_converter[f'{i['set_id']}_{j['index']}'] = j['item_id']
+                self.id_converter[f"{i['set_id']}_{j['index']}"] = j['item_id']
         # <<<
         self.embedding_dict = embedding_dict
         
@@ -98,7 +118,7 @@ class PolyvoreCompatibilityDataset(Dataset):
         return len(self.data)
     
     def __getitem__(self, idx) -> FashionCompatibilityData:
-        label = self.data[idx]['label']
+        label = int(self.data[idx]['label'])
         outfit = [
             load_item(self.id_converter[item_id], self.embedding_dict)
             for item_id in self.data[idx]['items']
@@ -116,7 +136,9 @@ class PolyvoreFillInTheBlankDataset(Dataset):
         dataset_type: Literal['nondisjoint', 'disjoint'] = 'nondisjoint',
         dataset_split: Literal['train', 'valid', 'test'] = 'train',
         embedding_dict: dict = None,
+        **kwargs,
     ):
+        dataset_split = _hf_split(dataset_split)
         # Modified >>>
         task = 'fill_in_the_blank'
         self.data = load_dataset(
@@ -129,7 +151,7 @@ class PolyvoreFillInTheBlankDataset(Dataset):
         )
         for i in set_infos:
             for j in i['items']:
-                self.id_converter[f'{i['set_id']}_{j['index']}'] = j['item_id']
+                self.id_converter[f"{i['set_id']}_{j['index']}"] = j['item_id']
         # <<<
         self.embedding_dict = embedding_dict
         
@@ -161,7 +183,9 @@ class PolyvoreTripletDataset(Dataset):
         dataset_type: Literal['nondisjoint', 'disjoint'] = 'nondisjoint',
         dataset_split: Literal['train', 'valid', 'test'] = 'train',
         embedding_dict: dict = None,
+        **kwargs,
     ):
+        dataset_split = _hf_split(dataset_split)
         # Modified >>>
         task = 'default'
         self.data = load_dataset(
@@ -192,20 +216,23 @@ class PolyvoreItemDataset(Dataset):
     def __init__(
         self,
         embedding_dict: dict = None,
+        load_image: bool = None,
+        **kwargs,
     ):
         self.embedding_dict = embedding_dict
+        self.load_image = load_image
 
     def __len__(self):
         return len(item_id2metadata_idx)
     
     def __getitem__(self, idx) -> FashionItem:
         item_id = metadata_idx2item_id[idx]
-        item = load_item(item_id, embedding_dict=self.embedding_dict)
+        item = load_item(item_id, embedding_dict=self.embedding_dict, load_image=self.load_image)
 
         return item
     
     def get_item_by_id(self, item_id):
-        return load_item(item_id, embedding_dict=self.embedding_dict)
+        return load_item(item_id, embedding_dict=self.embedding_dict, load_image=self.load_image)
         
         
 if __name__ == '__main__':

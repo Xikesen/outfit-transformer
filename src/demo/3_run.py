@@ -135,8 +135,8 @@ def run(args):
                     with gr.Column(variant='compact'):
                         polyvore_page = gr.Dropdown(
                             label="Page",
-                            choices=list(range(1, num_pages + 1)),  # 1부터 num_pages까지 선택 가능
-                            value=None  # 기본값
+                            choices=list(range(1, num_pages + 1)),  # pages 1..num_pages
+                            value=None  # default
                         )
         
         

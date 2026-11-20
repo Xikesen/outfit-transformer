@@ -47,7 +47,7 @@ class OutfitTransformer(nn.Module):
     def _init_item_enc(self):
         """Builds the outfit encoder using configuration parameters."""
         self.item_enc = ItemEncoder(
-            text_model_name=self.cfg.item_enc_text_model_name,
+            model_name=self.cfg.item_enc_text_model_name,
             enc_dim_per_modality=self.cfg.item_enc_dim_per_modality,
             enc_norm_out=self.cfg.item_enc_norm_out,
             aggregation_method=self.cfg.aggregation_method
@@ -137,7 +137,7 @@ class OutfitTransformer(nn.Module):
             length = len(embs_of_outfit)
 
             embeddings[i, :length] = embs_of_outfit
-            embeddings[i, length:] = self.pad_emb  # 패딩 부분을 학습 가능한 벡터로 채움
+            embeddings[i, length:] = self.pad_emb  # fill padding with the learned pad embedding
             mask.append([0] * length + [1] * (max_length - length))
         
         return embeddings, torch.BoolTensor(mask).to(self.device)

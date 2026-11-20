@@ -170,4 +170,4 @@ cython_debug/
 #.idea/
 
 # Torch Model
-*.pth
+*.pth10623-group-project/
